@@ -1,5 +1,3 @@
-
-Markdown
 # Apex Retail - Store Intelligence API 🛍️📊
 
 An end-to-end, edge-to-cloud analytical pipeline designed to mirror online e-commerce tracking within physical retail environments. 
