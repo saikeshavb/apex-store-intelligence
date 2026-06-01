@@ -1,19 +1,28 @@
-# Apex Retail - Store Intelligence API Architecture
+```markdown
+# System Architecture & Design
 
-## 1. System Overview
-This project implements a complete edge-to-cloud analytical pipeline designed to mirror online e-commerce tracking within physical retail environments. The system processes raw CCTV footage, extracts spatial trajectories, and correlates them with Point-of-Sale (POS) data to compute the North Star metric: **Offline Store Conversion Rate**.
+The Apex Retail Intelligence platform is designed as a highly scalable microservice architecture. It cleanly separates heavy computer vision processing from lightweight data ingestion, all visualized through a live Dashboard.
 
-## 2. Pipeline Stages
-* **Detection & Tracking (Edge):** Utilizes YOLOv8n for high-FPS person detection, paired with Deep SORT to maintain tracking states through partial occlusions (e.g., shelving units). 
-* **State Machine & Contract:** A local state machine translates tracking states into discrete JSON events (`ENTRY`, `ZONE_DWELL`, `BILLING_QUEUE_JOIN`), rigorously validated against a Pydantic schema to ensure data integrity.
-* **Ingestion Engine (Cloud):** A Flask-based REST API processes event batches. Strict idempotency is enforced at the MongoDB storage layer via unique indexing on `event_id`.
-* **Intelligence Layer:** Translates raw spatial data into business metrics using MongoDB Aggregation Pipelines to match anonymous `visitor_id` trajectories with POS transaction timestamps.
+## 🎥 1. Edge Computer Vision Layer (`detection_pipeline`)
+* **Role:** Acts as the physical edge node (camera gateway) in the store.
+* **Mechanism:** A standalone Python process parses CCTV video files using YOLOv8 for object detection and Deep SORT for temporal tracking across frames.
+* **Behavior:** When a track crosses a designated spatial coordinate (e.g., the front door), the pipeline dynamically generates a unique JSON payload and pushes it via HTTP POST to the backend API.
 
-## 3. Edge Case Mitigations
-* **Partial Occlusions:** Deep SORT's Kalman filter and appearance descriptors bridge tracking gaps.
-* **Staff Exclusion:** Visual heuristics evaluate bounding box color profiles against Apex Retail uniforms, flagging `is_staff: true` to scrub them from the conversion funnel.
-* **Camera Overlap / Re-entry:** The pipeline architecture includes stubbed OSNet Vector DB lookups to unify track IDs across multiple cameras and distinct sessions.
+## ⚙️ 2. API Server Layer (Flask)
+* **Role:** The central nervous system for data validation, ingestion, and analytical aggregations.
+* **Endpoints:**
+  * `POST /events/ingest`: A high-throughput endpoint for accepting shopper movement data from the edge pipeline.
+  * `GET /stores/<store_id>/metrics`: Aggregates top-level KPIs.
+  * `GET /stores/<store_id>/funnel`: Maps the customer journey through distinct store zones.
+* **Data Integrity:** Enforces idempotency. If an edge device loses connection and resends the same payload, the API recognizes the collision and safely ignores it.
 
-## 4. AI Assistance Strategy
-* **LLM Used:** Google Gemini
-* **Application:** Used iteratively to design robust MongoDB aggregation queries, write rigorous Pytest edge-case suites, and architect a zero-manual-step Docker Compose networking strategy.
+## 🗄️ 3. Database Layer (MongoDB)
+* **Role:** Persistent storage for high-velocity time-series event data.
+* **Indexes:** We utilize a unique index on `event_id` to enforce data integrity natively at the database layer, preventing duplicate visitor counts.
+
+## 📊 4. Frontend Layer (Streamlit)
+* **Role:** The live user interface for store managers.
+* **Mechanism:** A Streamlit application that continuously polls the Flask API's `/metrics` and `/funnel` endpoints to render live charts, graphs, and KPIs as shoppers move through the store.
+
+## 🔄 The Data Flow
+1. **Raw Video** -> 2. **YOLO/Deep SORT Script** -> 3. **JSON HTTP POST** -> 4. **Flask API** -> 5. **MongoDB** -> 6. **Streamlit UI Data Pull**.
