@@ -29,10 +29,18 @@ def test_health_check(client):
     assert response.status_code == 200
     assert response.json['status'] in ['HEALTHY', 'STALE_FEED']
 
+import uuid
+
 def test_ingest_events_idempotency(client):
     """Test that ingesting the exact same batch twice safely ignores duplicates."""
+    from app import db
+    db.events.create_index("event_id", unique=True)
+    
+    # Generate a completely unique ID for every test run
+    fresh_id = str(uuid.uuid4())
+    
     payload = {
-        "event_id": "test-uuid-123",
+        "event_id": fresh_id,
         "store_id": "TEST_STORE",
         "camera_id": "CAM_01",
         "visitor_id": "VIS_1",
@@ -45,15 +53,15 @@ def test_ingest_events_idempotency(client):
         "metadata": {"queue_depth": None, "sku_zone": None, "session_seq": 1}
     }
     
-    # First ingestion (Should Insert)
+    # First ingestion (Should Insert exactly 1)
     res1 = client.post('/events/ingest', json=[payload])
     assert res1.status_code == 201
     assert res1.json['inserted'] == 1
     
-    # Second ingestion of the exact same payload (Should Ignore)
-    # Note: mongomock handles unique index constraints gracefully in test environments
+    # Second ingestion of the EXACT same payload (Should block duplicate and insert 0)
     res2 = client.post('/events/ingest', json=[payload])
     assert res2.status_code == 201
+    assert res2.json.get('inserted', 0) == 0
 
 def test_metrics_empty_store_edge_case(client):
     """Test that an empty store does not cause ZeroDivisionErrors in metrics."""
