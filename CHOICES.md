@@ -18,3 +18,10 @@
 ## 4. Anomaly Detection: Statistical over ML 
 * **The Choice:** Statistical thresholding for Dead Zones and Queue Spikes.
 * **Reasoning:** Rather than implementing an over-engineered autoencoder, evaluating standard deviations (e.g., Queue Depth > 10, Abandonment > 15%) provides instant, interpretable, and computationally inexpensive operational alerts.
+
+## 5. Full-Stack Integration: Streamlit Dashboard
+* **Why Streamlit:** Building a custom React/Node.js frontend would have introduced immense boilerplate for a data-focused application. Streamlit allowed us to build a gorgeous, live-polling analytics dashboard in pure Python, seamlessly integrating with our Flask backend.
+
+## 6. Testing Strategy: `mongomock` and Dynamic IDs
+* **The Problem:** End-to-end testing against a live database frequently causes state collisions (e.g., trying to test "inserts" when the ID already exists).
+* **The Solution:** We integrated `mongomock` to patch the database entirely in memory during Pytest execution. We utilized `uuid.uuid4()` dynamically in the test suite to guarantee that idempotency tests could be run repeatedly without causing a failure, achieving a robust 75% statement coverage.
